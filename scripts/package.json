@@ -1,0 +1,15 @@
+{
+  "name": "torah-readings-data",
+  "version": "1.0.0",
+  "description": "Builds the app bundle data from Hebcal and Adas Israel",
+  "scripts": {
+    "build": "node build-data.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@hebcal/core": "^6.14.6",
+    "@hebcal/leyning": "^10.1.0",
+    "@hebcal/triennial": "^6.4.0"
+  },
+  "private": true
+}

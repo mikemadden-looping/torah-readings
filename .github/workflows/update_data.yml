@@ -1,0 +1,53 @@
+name: 3. Update readings and videos
+run-name: Update readings and videos
+
+# Rebuilds TorahReadings/Resources/readings.json (Hebcal triennial) and
+# videos.json (Adas Israel Tricks of the Trope pages), plus scripts/report.md,
+# and commits them if anything changed. Runs weekly and on demand; run
+# "2. Build to TestFlight" afterwards to put new data in the app.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * 1"
+  push:
+    paths:
+      - "scripts/**"
+
+permissions:
+  contents: write
+
+jobs:
+  data:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Build data
+        working-directory: scripts
+        run: |
+          set +e
+          { npm ci && node build-data.mjs; } > out.txt 2>&1
+          code=$?
+          cat out.txt
+          if [ $code -ne 0 ]; then
+            grep -E "Error|HTTP|ECONN|ENOTFOUND|fetch failed" out.txt | head -8 | while IFS= read -r line; do echo "::error::$line"; done
+            exit $code
+          fi
+          cat report.md >> $GITHUB_STEP_SUMMARY
+          head -8 report.md | while IFS= read -r line; do [ -n "$line" ] && echo "::notice::$line"; done
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add TorahReadings/Resources scripts/report.md
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "Update readings and video data"
+            git push
+          fi

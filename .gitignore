@@ -1,0 +1,11 @@
+*.xcodeproj/
+TorahReadings/Info.plist
+build/
+buildlog/
+*.ipa
+*.dSYM.zip
+*.mobileprovision
+fastlane/report.xml
+fastlane/README.md
+scripts/node_modules/
+.DS_Store

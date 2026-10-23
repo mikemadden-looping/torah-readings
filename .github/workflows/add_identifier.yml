@@ -1,0 +1,54 @@
+name: 1. Add identifier
+run-name: Add identifier
+
+# Run once. Registers the app's bundle ID with Apple and creates its
+# App Store provisioning profile in your Match-Secrets repository.
+on:
+  workflow_dispatch:
+
+jobs:
+  identifiers:
+    runs-on: macos-26
+    env:
+      TEAMID: ${{ secrets.TEAMID }}
+      GH_PAT: ${{ secrets.GH_PAT }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
+      FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+      FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
+    steps:
+      - name: Check secrets
+        run: |
+          missing=""
+          for s in TEAMID GH_PAT MATCH_PASSWORD FASTLANE_KEY_ID FASTLANE_ISSUER_ID FASTLANE_KEY; do
+            [ -z "${!s}" ] && missing="$missing $s"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing. On a free GitHub organization, organization secrets aren't available to private repositories — make the repo public or add the secrets to the repo."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      # The macOS image's default Ruby 3.4 / OpenSSL breaks fastlane's
+      # App Store Connect key loading (EC curve error); pin Ruby 3.3.
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Sync clock
+        run: sudo sntp -sS time.windows.com
+
+      - name: Register bundle ID and profile
+        run: |
+          bundle exec fastlane identifiers
+          echo "### Next step" >> $GITHUB_STEP_SUMMARY
+          echo "In App Store Connect, create a new app with bundle ID **com.YOUR-TEAM-ID.torahreadings** (GitHub hides your team ID here), then run *2. Build to TestFlight*." >> $GITHUB_STEP_SUMMARY
+        env:
+          TEAMID: ${{ secrets.TEAMID }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
+          FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+          FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
