@@ -35,7 +35,6 @@ enum ReadingPDF {
                 y = sectionTitle("Vowels and trope", at: y)
                 let text = vowelsText(verses, options: options)
                 y = drawFlowing(text, from: y, newPage: newPage)
-                if options.colors { y = drawLegend(groupsIn: verses, at: y + 10, newPage: newPage) }
             }
             if options.tikkun, let tikkun, !tikkun.isEmpty {
                 if options.vowels { newPage(); y = content.minY }
