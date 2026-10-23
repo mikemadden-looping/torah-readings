@@ -101,8 +101,10 @@ enum SignupSheet {
             let who = cell(signCol)
             guard !who.isEmpty, wanted.contains(where: { who.lowercased().contains($0) }) else { continue }
             guard let date = parseDate(cell(dateCol), df) else { continue }
-            out.append(Assignment(date: date, parshaOnSheet: cell(parshaCol), slot: cell(slotCol),
-                                  refOnSheet: cell(refCol), signedUp: who))
+            let a = Assignment(date: date, parshaOnSheet: cell(parshaCol), slot: cell(slotCol),
+                               refOnSheet: cell(refCol), signedUp: who)
+            guard a.aliyahKey != nil else { continue }   // Torah readings only; skip haftarah rows
+            out.append(a)
         }
         return out.sorted { $0.date < $1.date }
     }
