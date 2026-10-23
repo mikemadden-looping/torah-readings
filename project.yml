@@ -18,7 +18,8 @@ targets:
     info:
       path: TorahReadings/Info.plist
       properties:
-        CFBundleDisplayName: Torah Readings
+        CFBundleDisplayName: Torah Practice
+        CFBundleName: Torah Practice
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
@@ -34,6 +35,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mikemadden.TorahReadings
         PRODUCT_NAME: TorahReadings
+        INFOPLIST_KEY_CFBundleDisplayName: Torah Practice
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

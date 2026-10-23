@@ -25,6 +25,10 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      - name: Show app name
+        run: |
+          echo "::notice::Info.plist CFBundleDisplayName = $(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' TorahReadings/Info.plist 2>&1)"
+
       - name: Compile for Simulator
         run: |
           set -o pipefail
@@ -32,6 +36,8 @@ jobs:
             -configuration Debug -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build | tee build.log | grep -E "error:|warning: .*(deprecated|will be an error)|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
+          app=$(find ~/Library/Developer/Xcode/DerivedData -name 'TorahReadings.app' -type d | head -1)
+          [ -n "$app" ] && echo "::notice::Built app CFBundleDisplayName = $(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app/Info.plist" 2>&1)" || true
 
       - name: Upload build log
         if: failure()
