@@ -196,41 +196,42 @@ struct TikkunView: View {
     }
 
     private func load() async {
+        if let out = await TikkunView.buildLines(for: passage), !out.isEmpty { lines = out } else { failed = true }
+    }
+
+    /// The scroll lines holding a passage, with the neighboring verses' words
+    /// filling out the first and last lines. Shared with the PDF export.
+    static func buildLines(for passage: Passage) async -> [TikkunLine]? {
         guard let bookIndex = ScrollLayout.books.firstIndex(of: passage.book),
-              let first = passage.ranges.first, let last = passage.ranges.last else { failed = true; return }
-        do {
-            let main = try await SefariaClient.shared.verses(for: passage)
-            // One verse either side fills out the first and last scroll lines.
-            var before: [VerseText] = [], after: [VerseText] = []
-            if first.start.verse > 1 {
-                let p = Passage(book: passage.book, ranges: [VerseRange(start: CV(first.start.chapter, first.start.verse - 1), end: CV(first.start.chapter, first.start.verse - 1))])
-                before = (try? await SefariaClient.shared.verses(for: p)) ?? []
-            }
-            let next = Passage(book: passage.book, ranges: [VerseRange(start: CV(last.end.chapter, last.end.verse + 1), end: CV(last.end.chapter, last.end.verse + 1))])
-            after = ((try? await SefariaClient.shared.verses(for: next)) ?? []).filter { !$0.hebrewHTML.isEmpty }
-
-            var words: [ScrollWord] = []
-            for v in before { words += ScrollWords.words(v, inPassage: false) }
-            for v in main { words += ScrollWords.words(v, inPassage: true) }
-            for v in after { words += ScrollWords.words(v, inPassage: false) }
-
-            let layout = ScrollLayout.shared
-            var byLine: [Int: [ScrollWord]] = [:]
-            for w in words {
-                let key = ScrollLayout.Key(book: bookIndex, chapter: w.cv.chapter, verse: w.cv.verse, word: w.index)
-                if let line = layout.line(of: key) { byLine[line, default: []].append(w) }
-            }
-            // Keep only lines that hold part of the passage.
-            let keep = byLine.filter { $0.value.contains(where: \.inPassage) }.keys.sorted()
-            var out: [TikkunLine] = []
-            for (i, line) in keep.enumerated() {
-                let blank = i == 0 ? 0 : layout.blankLines(after: keep[i - 1], before: line)
-                out.append(TikkunLine(line: line, words: byLine[line] ?? [], blankBefore: blank))
-            }
-            lines = out
-            failed = out.isEmpty
-        } catch {
-            failed = true
+              let first = passage.ranges.first, let last = passage.ranges.last else { return nil }
+        guard let main = try? await SefariaClient.shared.verses(for: passage) else { return nil }
+        // One verse either side fills out the first and last scroll lines.
+        var before: [VerseText] = [], after: [VerseText] = []
+        if first.start.verse > 1 {
+            let v = CV(first.start.chapter, first.start.verse - 1)
+            before = (try? await SefariaClient.shared.verses(for: Passage(book: passage.book, ranges: [VerseRange(start: v, end: v)]))) ?? []
         }
+        let n = CV(last.end.chapter, last.end.verse + 1)
+        after = ((try? await SefariaClient.shared.verses(for: Passage(book: passage.book, ranges: [VerseRange(start: n, end: n)]))) ?? [])
+            .filter { !$0.hebrewHTML.isEmpty }
+
+        var words: [ScrollWord] = []
+        for v in before { words += ScrollWords.words(v, inPassage: false) }
+        for v in main { words += ScrollWords.words(v, inPassage: true) }
+        for v in after { words += ScrollWords.words(v, inPassage: false) }
+
+        let layout = ScrollLayout.shared
+        var byLine: [Int: [ScrollWord]] = [:]
+        for w in words {
+            let key = ScrollLayout.Key(book: bookIndex, chapter: w.cv.chapter, verse: w.cv.verse, word: w.index)
+            if let line = layout.line(of: key) { byLine[line, default: []].append(w) }
+        }
+        let keep = byLine.filter { $0.value.contains(where: \.inPassage) }.keys.sorted()
+        var out: [TikkunLine] = []
+        for (i, line) in keep.enumerated() {
+            let blank = i == 0 ? 0 : layout.blankLines(after: keep[i - 1], before: line)
+            out.append(TikkunLine(line: line, words: byLine[line] ?? [], blankBefore: blank))
+        }
+        return out
     }
 }

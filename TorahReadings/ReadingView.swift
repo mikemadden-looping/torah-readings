@@ -18,6 +18,7 @@ struct ReadingView: View {
     @State private var loadError: String?
     @State private var selectedVideo: String?
     @State private var showLegend = false
+    @State private var showPrint = false
 
     private var mode: TextMode { TextMode(rawValue: modeRaw) ?? .trope }
     private var videoMatch: DataStore.VideoMatch { DataStore.shared.videos(for: target.passage) }
@@ -41,6 +42,8 @@ struct ReadingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showPrint = true } label: { Image(systemName: "printer") }
+                    .accessibilityLabel("Print or save as PDF")
                 Button { fontSize = max(16, fontSize - 2) } label: { Image(systemName: "textformat.size.smaller") }
                     .accessibilityLabel("Smaller text")
                 Button { fontSize = min(56, fontSize + 2) } label: { Image(systemName: "textformat.size.larger") }
@@ -51,6 +54,7 @@ struct ReadingView: View {
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .sheet(isPresented: $showLegend) { TropeLegend() }
+        .sheet(isPresented: $showPrint) { PrintSheet(target: target, initialColors: tropeColors, stamFont: stamStyle) }
     }
 
     private var availableModes: [TextMode] {
