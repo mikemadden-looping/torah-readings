@@ -1,0 +1,24 @@
+name: 5. Export Torah text for the Tikkun layout
+run-name: Export Torah text
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node scripts/export-torah-words.mjs
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/torah-words.json
+          git diff --cached --quiet || { git commit -m "Export Torah text for the Tikkun layout" && git push; }
