@@ -1,82 +1,96 @@
 import SwiftUI
 
-/// Torah te'amim grouped the way they're taught: each disjunctive (pausal)
-/// trope ends a phrase, and the conjunctive tropes before it belong to it.
-/// Coloring a phrase by its ending disjunctive makes the units you chant
-/// (mercha-tipcha, munach-etnachta, mahpach-pashta-munach-zakef…) stand out.
-enum TropeFamily: String, CaseIterable, Identifiable {
-    case sofPasuq, etnachta, segol, shalshelet, zakef, tipcha, revia
-    case pashta, zarka, tevir, geresh, pazer
+/// Trope groups as they're taught (and as TropeTrainer colors them): each
+/// group ends in a major pausing trope, and the conjunctive tropes and the
+/// minor pausing trope before it belong to it — so mercha tipcha mercha
+/// sof pasuk is one sof pasuk group, mahpach pashta munach zakef katon is
+/// one katon group, and so on.
+enum TropeGroup: String, CaseIterable, Identifiable {
+    case sofPasuk, etnachta, katon, zakefGadol, segol, revia, tevir
+    case geresh, pazer, telishaGedolah, shalshelet, legarmeh
 
     var id: String { rawValue }
 
     var name: String {
         switch self {
-        case .sofPasuq: return "Sof pasuk"
-        case .etnachta: return "Etnachta"
-        case .segol: return "Segol"
+        case .sofPasuk: return "Sof pasuk — mercha tipcha mercha sof pasuk"
+        case .etnachta: return "Etnachta — mercha tipcha munach etnachta"
+        case .katon: return "Katon — mahpach pashta munach zakef katon"
+        case .zakefGadol: return "Zakef gadol"
+        case .segol: return "Segol — munach zarka munach segol"
+        case .revia: return "Revia — munach revia"
+        case .tevir: return "Tevir — darga tevir"
+        case .geresh: return "Geresh — kadma v'azla, gershayim"
+        case .pazer: return "Pazer"
+        case .telishaGedolah: return "Telisha gedolah"
         case .shalshelet: return "Shalshelet"
-        case .zakef: return "Zakef katon / gadol"
-        case .tipcha: return "Tipcha"
-        case .revia: return "Revia"
-        case .pashta: return "Pashta / yetiv"
-        case .zarka: return "Zarka"
-        case .tevir: return "Tevir"
-        case .geresh: return "Geresh / gershayim"
-        case .pazer: return "Pazer, telisha gedolah, legarmeh"
+        case .legarmeh: return "Munach legarmeh"
         }
     }
 
+    /// Pastel highlights matching TropeTrainer where it shows them; black text sits on top.
     var color: Color {
+        func c(_ hex: UInt32) -> Color {
+            Color(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
+        }
         switch self {
-        case .sofPasuq: return .blue
-        case .etnachta: return .purple
-        case .segol: return .pink
-        case .shalshelet: return .red
-        case .zakef: return .orange
-        case .tipcha: return .teal
-        case .revia: return .green
-        case .pashta: return .brown
-        case .zarka: return .indigo
-        case .tevir: return .mint
-        case .geresh: return .cyan
-        case .pazer: return Color(red: 0.75, green: 0.6, blue: 0.0)
+        case .sofPasuk: return c(0xE8807F)
+        case .etnachta: return c(0x8AB4F8)
+        case .katon: return c(0xFFFF99)
+        case .zakefGadol: return c(0xF5D45A)
+        case .segol: return c(0xCDB4F4)
+        case .revia: return c(0xF7BE87)
+        case .tevir: return c(0x9CF58F)
+        case .geresh: return c(0xF4B4B4)
+        case .pazer: return c(0x8EE3E0)
+        case .telishaGedolah: return c(0xB8E0A0)
+        case .shalshelet: return c(0xD0D0D0)
+        case .legarmeh: return c(0xE6CCF2)
         }
     }
 
-    /// Which disjunctive a word carries, if any.
-    static func of(word: String) -> TropeFamily? {
-        let marks = Set(word.unicodeScalars.map(\.value))
-        if marks.contains(0x05C3) { return .sofPasuq }          // ׃ (with silluq)
-        if marks.contains(0x0591) { return .etnachta }
-        if marks.contains(0x0593) { return .shalshelet }
-        if marks.contains(0x0592) { return .segol }
-        if marks.contains(0x0594) || marks.contains(0x0595) { return .zakef }
-        if marks.contains(0x0596) { return .tipcha }
-        if marks.contains(0x0597) { return .revia }
-        if marks.contains(0x0599) || marks.contains(0x059A) { return .pashta }
-        if marks.contains(0x05AE) || marks.contains(0x0598) { return .zarka }
-        if marks.contains(0x059B) { return .tevir }
-        if marks.contains(0x059C) || marks.contains(0x059D) || marks.contains(0x059E) { return .geresh }
-        if marks.contains(0x05A1) || marks.contains(0x059F) || marks.contains(0x05A0) { return .pazer }
+    /// A major pausing trope that ends a group.
+    static func ending(_ word: String) -> TropeGroup? {
+        let m = Set(word.unicodeScalars.map(\.value))
+        if m.contains(0x05C3) { return .sofPasuk }               // ׃ (silluq)
+        if m.contains(0x0591) { return .etnachta }
+        if m.contains(0x0593) { return .shalshelet }
+        if m.contains(0x0592) { return .segol }
+        if m.contains(0x0594) { return .katon }
+        if m.contains(0x0595) { return .zakefGadol }
+        if m.contains(0x0597) { return .revia }
+        if m.contains(0x059B) { return .tevir }
+        if m.contains(0x059C) || m.contains(0x059D) || m.contains(0x059E) { return .geresh }
+        if m.contains(0x05A1) || m.contains(0x059F) { return .pazer }
+        if m.contains(0x05A0) { return .telishaGedolah }
+        if m.contains(0x05A3), word.hasSuffix("׀") { return .legarmeh }  // munach + paseq
+        return nil
+    }
+
+    /// A minor pausing trope, and the group it belongs to when that group follows.
+    static func subordinate(_ word: String) -> (fits: Set<TropeGroup>, alone: TropeGroup)? {
+        let m = Set(word.unicodeScalars.map(\.value))
+        if m.contains(0x0596) { return ([.sofPasuk, .etnachta], .etnachta) }   // tipcha
+        if m.contains(0x0599) || m.contains(0x059A) { return ([.katon], .katon) }   // pashta, yetiv
+        if m.contains(0x05AE) || m.contains(0x0598) { return ([.segol], .segol) } // zarka
         return nil
     }
 }
 
-/// A displayable word in the trope view.
+/// A displayable word in the vowels view.
 struct TropeWord {
     var text: String          // pointed text as chanted (keri where it differs)
     var ketiv: String?        // shown small when the written form differs
     var readOnly: Bool = false // keri with no ketiv
     var notRead: Bool = false  // ketiv with no keri
-    var family: TropeFamily? = nil
+    var group: TropeGroup? = nil
+    var groupIndex: Int = -1   // words with the same index form one highlighted run
 }
 
 enum TropeLayout {
     enum Item { case word(TropeWord), petucha, setuma }
 
-    /// Turns a verse's pieces into words, then gives every word the family of
-    /// the disjunctive that ends its phrase.
+    /// Turns a verse's pieces into words and assigns each word its trope group.
     static func items(_ pieces: [Piece]) -> [Item] {
         var items: [Item] = []
         for p in pieces {
@@ -84,8 +98,7 @@ enum TropeLayout {
             case .text(let t):
                 for w in t.split(whereSeparator: { $0 == " " || $0 == "\u{2009}" }) {
                     let word = String(w)
-                    // A paseq (׀) stands between words; attach it to the previous one
-                    // so munach + paseq reads as legarmeh.
+                    // A paseq (׀) stands between words; attach it to the previous one.
                     if word == "׀", case .word(var prev)? = items.last {
                         prev.text += " ׀"
                         items[items.count - 1] = .word(prev)
@@ -100,18 +113,22 @@ enum TropeLayout {
             case .setuma: items.append(.setuma)
             }
         }
-        // Walk backwards: each disjunctive starts a new phrase that the
-        // conjunctives before it inherit.
-        var current: TropeFamily? = nil
+        // Walk backwards from the end of the verse: a major pausing trope opens
+        // a new group; a minor one joins the group after it when it belongs
+        // there (tipcha before etnachta or sof pasuk, pashta before zakef,
+        // zarka before segol), otherwise opens its own; conjunctives join
+        // whatever follows.
+        var current: TropeGroup? = nil
+        var index = 0
         for i in items.indices.reversed() {
-            guard case .word(var w) = items[i] else { continue }
-            if w.notRead { continue }
-            if let f = TropeFamily.of(word: w.text) {
-                current = f
-            } else if w.text.hasSuffix("׀"), w.text.unicodeScalars.contains(where: { $0.value == 0x05A3 }) {
-                current = .pazer                                    // legarmeh
+            guard case .word(var w) = items[i], !w.notRead else { continue }
+            if let g = TropeGroup.ending(w.text) {
+                current = g; index += 1
+            } else if let sub = TropeGroup.subordinate(w.text) {
+                if current == nil || !sub.fits.contains(current!) { current = sub.alone; index += 1 }
             }
-            w.family = current
+            w.group = current
+            w.groupIndex = index
             items[i] = .word(w)
         }
         return items

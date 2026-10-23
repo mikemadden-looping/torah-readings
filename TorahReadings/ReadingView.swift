@@ -132,7 +132,7 @@ struct ReadingView: View {
 
     private var tropeToggle: some View {
         HStack {
-            Toggle("Color trope phrases", isOn: $tropeColors)
+            Toggle("Color trope groups", isOn: $tropeColors)
             Button { showLegend = true } label: { Image(systemName: "info.circle") }
                 .accessibilityLabel("Trope color key")
         }
@@ -209,26 +209,36 @@ struct ReadingView: View {
         for (i, v) in verses.enumerated() {
             out += verseNumber(v, first: i == 0)
             let items = TropeLayout.items(HebrewText.pieces(v.hebrewHTML))
-            for item in items {
+            for (j, item) in items.enumerated() {
                 switch item {
                 case .petucha: out += AttributedString("\n")
                 case .setuma: out += AttributedString("\u{2003}\u{2003}\u{2003}")
                 case .word(let w):
+                    let highlight = tropeColors && !w.notRead ? w.group?.color : nil
                     var word = AttributedString(w.notRead ? "(\(w.text))" : w.text)
                     if w.notRead {
                         word.foregroundColor = Color.secondary
-                    } else if tropeColors, let f = w.family {
-                        word.foregroundColor = f.color
+                    } else if let highlight {
+                        word.backgroundColor = highlight
+                        word.foregroundColor = Color.black
                     }
                     if w.ketiv != nil || w.readOnly { word.underlineStyle = Text.LineStyle.single }
                     out += word
                     if let k = w.ketiv {
                         var note = AttributedString("\u{00A0}(\(k))")
                         note.font = Font.system(size: fontSize * 0.5)
-                        note.foregroundColor = Color.secondary
+                        note.foregroundColor = highlight == nil ? Color.secondary : Color.black.opacity(0.6)
+                        if let highlight { note.backgroundColor = highlight }
                         out += note
                     }
-                    out += AttributedString(" ")
+                    // The space joins the highlight only inside a group, so groups
+                    // read as separate blocks.
+                    var space = AttributedString(" ")
+                    if let highlight, j + 1 < items.count, case .word(let next) = items[j + 1],
+                       !next.notRead, next.groupIndex == w.groupIndex {
+                        space.backgroundColor = highlight
+                    }
+                    out += space
                 }
             }
         }
@@ -279,13 +289,13 @@ struct TropeLegend: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Each phrase is colored by the pausing (disjunctive) trope that ends it; the connecting tropes before it share its color.")
+                    Text("Each trope group is highlighted as one block, the way it's taught and chanted. A group ends in a major pausing trope; the connecting tropes and the minor pausing trope before it (tipcha, pashta, zarka) belong to it.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-                ForEach(TropeFamily.allCases) { f in
+                ForEach(TropeGroup.allCases) { g in
                     HStack {
-                        Circle().fill(f.color).frame(width: 14, height: 14)
-                        Text(f.name)
+                        RoundedRectangle(cornerRadius: 3).fill(g.color).frame(width: 22, height: 14)
+                        Text(g.name)
                     }
                 }
                 Section {
