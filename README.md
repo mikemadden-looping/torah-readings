@@ -21,8 +21,8 @@ aliyah (or let it find the ones you're signed up for) and it shows:
 | Your readings | The shul's Google sign-up sheet (set in the app's Settings; General access must be "Anyone with the link") |
 
 `scripts/build-data.mjs` turns Hebcal and the Adas Israel pages into
-`TorahReadings/Resources/readings.json` (every Shabbat for four triennial
-cycles) and `videos.json`, and writes **`scripts/report.md`** listing problems
+`TorahReadings/Resources/readings.json` (every Shabbat for 12 Hebrew years starting with the current
+triennial cycle, so four times through Years 1–3) and `videos.json`, and writes **`scripts/report.md`** listing problems
 it found on the Adas Israel pages (broken links, mistyped verse ranges) and any
 aliyot no video fully covers.
 
