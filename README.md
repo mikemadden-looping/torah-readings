@@ -3,9 +3,9 @@
 A small iPhone app for preparing a triennial Torah reading. Pick a parsha and
 aliyah (or let it find the ones you're signed up for) and it shows:
 
-- **Trope** — the Hebrew with vowels and te'amim, with an optional toggle that
+- **Vowels** — the Hebrew with vowels and te'amim, with an optional toggle that
   colors each trope phrase by the pausing trope that ends it
-- **Torah** — the same verses as written in a scroll: letters only, ketiv
+- **Tikkun** — the same verses as written in a scroll: letters only, ketiv
   spellings, open/closed paragraph breaks
 - **English** — Sefaria's English translation
 - **Video** — the matching *Tricks of the Trope – Total Torah* video from
@@ -52,12 +52,11 @@ Uses the same signing secrets as the Trio Browser Build, set on the
 data if Hebcal or the Adas Israel pages changed; run step 3 of the install
 again afterwards to put it in the app. TestFlight builds expire after 90 days.
 
-## Optional: a STaM font for the Torah view
+## Tikkun font
 
-The Torah view uses Noto Serif Hebrew by default. To get scroll-style letters,
-add a STaM font file (for example *Stam Ashkenaz CLM* from the
-[Culmus project](https://culmus.sourceforge.io)) to `TorahReadings/Fonts/`. Any
-bundled font whose family name contains "Stam" is used automatically.
+The Tikkun view uses the Culmus project's scribal fonts, *Stam Ashkenaz CLM*
+and *Stam Sefarad CLM* (GPL-2 with the font exception), switchable in the view.
+They were copied from Ubuntu's `culmus` package by **4. Fetch STaM font**.
 
 ## Build locally instead (Mac with Xcode 26)
 

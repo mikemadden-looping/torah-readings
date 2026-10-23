@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TextMode: String, CaseIterable, Identifiable {
-    case trope = "Trope", scroll = "Torah", english = "English"
+    case trope = "Vowels", scroll = "Tikkun", english = "English"
     var id: String { rawValue }
 }
 
@@ -12,6 +12,7 @@ struct ReadingView: View {
     @AppStorage("fontSize") private var fontSize = 26.0
     @AppStorage("tropeColors") private var tropeColors = false
     @AppStorage("scrollVerseNumbers") private var scrollVerseNumbers = false
+    @AppStorage("stamStyle") private var stamStyle = Fonts.stamAshkenaz
 
     @State private var verses: [VerseText] = []
     @State private var loadError: String?
@@ -152,8 +153,23 @@ struct ReadingView: View {
                 hebrew(Text(tropeString()), font: Fonts.hebrew)
             case .scroll:
                 VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Verse numbers", isOn: $scrollVerseNumbers).font(.subheadline)
-                    hebrew(Text(scrollString()), font: Fonts.scroll)
+                    HStack {
+                        Picker("Script", selection: $stamStyle) {
+                            Text("Ashkenazi").tag(Fonts.stamAshkenaz)
+                            Text("Sefardi").tag(Fonts.stamSefarad)
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                        Spacer()
+                        Toggle("Verse numbers", isOn: $scrollVerseNumbers).fixedSize()
+                    }
+                    .font(.subheadline)
+                    hebrew(Text(scrollString()), font: Fonts.scroll(stamStyle))
+                        .foregroundStyle(Color(red: 0.08, green: 0.07, blue: 0.06))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 22)
+                        .background(Color(red: 0.96, green: 0.92, blue: 0.83), in: RoundedRectangle(cornerRadius: 6))
+                        .environment(\.colorScheme, .light)
                 }
             case .english:
                 VStack(alignment: .leading, spacing: 10) {

@@ -14,10 +14,14 @@ enum Fonts {
     /// Pointed text with te'amim. Noto Serif Hebrew covers every cantillation mark.
     static let hebrew = "Noto Serif Hebrew"
 
-    /// The scroll view uses a STaM font when one is bundled (any font file in
-    /// TorahReadings/Fonts whose family name contains "Stam"), else Noto.
-    static var scroll: String {
-        UIFont.familyNames.first { $0.localizedCaseInsensitiveContains("stam") } ?? hebrew
+    /// Culmus scribal fonts (GPL-2 with font exception), letters with tagin.
+    static let stamAshkenaz = "Stam Ashkenaz CLM"
+    static let stamSefarad = "Stam Sefarad CLM"
+
+    /// The Tikkun view's font: the chosen STaM style if it's installed, else Noto.
+    static func scroll(_ preferred: String) -> String {
+        UIFont.familyNames.contains(preferred) ? preferred
+            : (UIFont.familyNames.first { $0.localizedCaseInsensitiveContains("stam") } ?? hebrew)
     }
 
     static func registerBundled() {
