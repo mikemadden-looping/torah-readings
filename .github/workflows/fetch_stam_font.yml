@@ -1,0 +1,44 @@
+name: 4. Fetch STaM font
+run-name: Fetch STaM font
+
+# Copies the Culmus project's scribal (STaM) fonts, GPL-2 with the font
+# exception, from Ubuntu's culmus package into TorahReadings/Fonts so the
+# Torah view looks hand-lettered. Run once; then rebuild to TestFlight.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  font:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install culmus
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq culmus
+          dpkg -L culmus | grep -iE 'stam|copying|license|readme' || true
+
+      - name: Copy STaM fonts
+        run: |
+          set -e
+          found=$(dpkg -L culmus | grep -iE '/stam[^/]*\.(ttf|otf)$' || true)
+          if [ -z "$found" ]; then
+            echo "::error::No STaM .ttf/.otf in the culmus package. Files: $(dpkg -L culmus | grep -iE '\.(ttf|otf|pfa|afm)$' | xargs -n1 basename | tr '\n' ' ')"
+            exit 1
+          fi
+          for f in $found; do cp "$f" TorahReadings/Fonts/; echo "::notice::Added $(basename "$f")"; done
+          lic=$(dpkg -L culmus | grep -iE '/(copying|license)[^/]*$' | head -1 || true)
+          [ -n "$lic" ] && cp "$lic" TorahReadings/Fonts/Culmus-LICENSE.txt
+          [ -f /usr/share/doc/culmus/copyright ] && cp /usr/share/doc/culmus/copyright TorahReadings/Fonts/Culmus-copyright.txt
+          ls -la TorahReadings/Fonts
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add TorahReadings/Fonts
+          if git diff --cached --quiet; then echo "No changes."; else git commit -m "Add Culmus STaM fonts" && git push; fi
