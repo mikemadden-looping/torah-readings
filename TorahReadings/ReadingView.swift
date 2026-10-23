@@ -164,12 +164,17 @@ struct ReadingView: View {
                         Toggle("Verse numbers", isOn: $scrollVerseNumbers).fixedSize()
                     }
                     .font(.subheadline)
-                    hebrew(Text(scrollString()), font: Fonts.scroll(stamStyle))
-                        .foregroundStyle(Color(red: 0.08, green: 0.07, blue: 0.06))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 22)
-                        .background(Color(red: 0.96, green: 0.92, blue: 0.83), in: RoundedRectangle(cornerRadius: 6))
-                        .environment(\.colorScheme, .light)
+                    if target.passage.isTorah && ScrollLayout.shared.isAvailable {
+                        TikkunView(passage: target.passage, fontName: Fonts.scroll(stamStyle),
+                                   maxFontSize: fontSize, showVerseNumbers: scrollVerseNumbers)
+                    } else {
+                        hebrew(Text(scrollString()), font: Fonts.scroll(stamStyle))
+                            .foregroundStyle(Color(red: 0.08, green: 0.07, blue: 0.06))
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 22)
+                            .background(Color(red: 0.96, green: 0.92, blue: 0.83), in: RoundedRectangle(cornerRadius: 6))
+                            .environment(\.colorScheme, .light)
+                    }
                 }
             case .english:
                 VStack(alignment: .leading, spacing: 10) {

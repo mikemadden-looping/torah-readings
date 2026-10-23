@@ -21,6 +21,7 @@ for (const book of BOOKS) {
   const chapters = (await res.json()).versions[0].text;
   out[book] = chapters.map((verses) => verses.map((html) => {
     const h = html
+      .replace(/<sup class="footnote-marker">.*?<\/sup>/g, '').replace(/<i class="footnote">.*?<\/i>/g, '')
       .replace(kq, (_, inner) => { const k = inner.match(/mam-kq-k">\((.*?)\)<\/span>/); return k ? k[1] : ' '; })
       .replace(/<span class="mam-spi-pe">.*?<\/span>/g, ' \u0001P ')
       .replace(/<span class="mam-spi-samekh">.*?<\/span>/g, ' \u0001S ')

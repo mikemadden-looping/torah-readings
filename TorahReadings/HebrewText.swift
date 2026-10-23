@@ -19,7 +19,10 @@ enum HebrewText {
     /// Splits Sefaria's Miqra-according-to-the-Masorah HTML into pieces.
     static func pieces(_ html: String) -> [Piece] {
         var out: [Piece] = []
-        var rest = Substring(html)
+        // Drop Sefaria's editorial footnotes (e.g. notes on Yemenite scroll spellings).
+        let cleaned = html.replacing(#/<sup class="footnote-marker">.*?</sup>/#, with: "")
+            .replacing(#/<i class="footnote">.*?</i>/#, with: "")
+        var rest = Substring(cleaned)
         while !rest.isEmpty {
             let kq = rest.firstMatch(of: kqBlock)
             let br = rest.firstMatch(of: breakRx)
@@ -63,7 +66,8 @@ enum HebrewText {
         for u in s.unicodeScalars {
             switch u.value {
             case 0x05BE: out.append(" ")                                  // maqaf → word space
-            case 0x0591...0x05C7, 0x034F, 0x200B...0x200F, 0x2009: continue // marks, CGJ, joiners, thin space
+            case 0x2009: out.append(" ")                                  // thin space (around a paseq)
+            case 0x0591...0x05C7, 0x034F, 0x200B...0x200F: continue          // marks, CGJ, joiners
             default: out.append(u)
             }
         }
