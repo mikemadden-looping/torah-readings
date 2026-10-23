@@ -1,156 +1,99 @@
 import SwiftUI
 
+/// Opens straight to a reading. The menu (top left) switches readings or sets
+/// up the sign-up sheet.
 struct ContentView: View {
     @AppStorage("sheetURL") private var sheetURL = SignupSheet.defaultURL
     @AppStorage("readerNames") private var readerNames = SignupSheet.defaultName
     @AppStorage("autoOpen") private var autoOpen = true
 
-    @State private var path: [ReadingTarget] = []
+    @State private var target: ReadingTarget? = ContentView.thisWeeksFirst
+    @State private var userPicked = false
     @State private var assignments: [Assignment] = []
     @State private var sheetError: String?
     @State private var sheetFromCache = false
-    @State private var loadingSheet = false
-    @State private var didAutoOpen = false
-    @State private var showSettings = false
-
-    // Manual picker
-    @State private var parsha: String = DataStore.shared.upcomingShabbat?.parsha ?? "Bereshit"
-    @State private var yearChoice = 0          // 0 = this year (from Hebcal), else 1–3
-    @State private var aliyah = "1"
+    @State private var showChooser = false
+    @State private var showSheetSettings = false
 
     private let store = DataStore.shared
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
     private var upcoming: [Assignment] { assignments.filter { $0.date >= today } }
-    private var past: [Assignment] { assignments.filter { $0.date < today }.reversed() }
     private var sheetConfigured: Bool {
         !sheetURL.trimmingCharacters(in: .whitespaces).isEmpty && !readerNames.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    static var thisWeeksFirst: ReadingTarget? {
+        guard let s = DataStore.shared.upcomingShabbat, let a = s.aliyah("1") else { return nil }
+        return .from(shabbat: s, aliyah: a)
+    }
+
     var body: some View {
-        NavigationStack(path: $path) {
-            List {
-                myReadings
-                thisShabbat
-                chooser
+        NavigationStack {
+            Group {
+                if let target { ReadingView(target: target).id(target.id) }
+                else { ContentUnavailableView("No reading", systemImage: "book.closed") }
             }
-            .navigationTitle("Torah Readings")
             .toolbar {
-                Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityLabel("Settings")
+                ToolbarItem(placement: .topBarLeading) { menu }
             }
-            .navigationDestination(for: ReadingTarget.self) { ReadingView(target: $0) }
-            .refreshable { await loadSheet() }
-            .task { await loadSheet() }
-            .sheet(isPresented: $showSettings, onDismiss: { Task { await loadSheet() } }) {
-                SettingsView(sheetURL: $sheetURL, readerNames: $readerNames, autoOpen: $autoOpen)
-            }
+        }
+        .task { await loadSheet() }
+        .sheet(isPresented: $showChooser) {
+            ChooserView { picked in open(picked) }
+        }
+        .sheet(isPresented: $showSheetSettings, onDismiss: { Task { await loadSheet() } }) {
+            SignupSettingsView(sheetURL: $sheetURL, readerNames: $readerNames, autoOpen: $autoOpen)
         }
     }
 
-    // MARK: Sections
-
-    @ViewBuilder private var myReadings: some View {
-        Section {
-            if !sheetConfigured {
-                Button { showSettings = true } label: {
-                    Label("Add your shul's sign-up sheet and your name to see your readings here", systemImage: "tablecells")
-                }
-            }
-            if loadingSheet && assignments.isEmpty {
-                HStack { ProgressView(); Text("Checking the sign-up sheet…").foregroundStyle(.secondary) }
-            }
-            if let sheetError {
-                Label(sheetError, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
-            }
-            if sheetConfigured && !loadingSheet && sheetError == nil && upcoming.isEmpty {
-                Text("You're not signed up for any upcoming readings.").foregroundStyle(.secondary)
-            }
-            ForEach(upcoming) { assignmentRow($0) }
-            if !past.isEmpty {
-                DisclosureGroup("Past readings (\(past.count))") {
-                    ForEach(past) { assignmentRow($0) }
-                }
-            }
-        } header: {
-            Text("My readings")
-        } footer: {
-            if sheetFromCache { Text("Offline — showing the sign-up sheet as of the last check.") }
-        }
+    private func open(_ t: ReadingTarget) {
+        userPicked = true
+        target = t
     }
 
-    private func assignmentRow(_ a: Assignment) -> some View {
-        let target = ReadingTarget.from(assignment: a)
-        return NavigationLink(value: target) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(a.date.formatted(.dateTime.weekday(.abbreviated).month().day().year())) · \(a.parshaOnSheet)")
-                    .font(.headline)
-                Text("\(a.slotLabel)\(target.map { ": \($0.passage.display)" } ?? "")")
-                    .font(.subheadline)
-                if target == nil {
-                    Text("Couldn't work out the verses for this row.").font(.caption).foregroundStyle(.orange)
-                }
-            }
-        }
-        .disabled(target == nil)
-    }
+    // MARK: Menu
 
-    @ViewBuilder private var thisShabbat: some View {
-        if let s = store.upcomingShabbat {
-            Section("This Shabbat — \(s.parsha), year \(s.cycleYear)") {
-                ForEach(s.aliyot, id: \.n) { a in
-                    NavigationLink(value: ReadingTarget.from(shabbat: s, aliyah: a)) {
-                        HStack {
-                            Text(a.label)
-                            Spacer()
-                            Text(Passage(book: a.book, ranges: [a.range]).display)
-                                .foregroundStyle(.secondary).font(.subheadline)
+    private var menu: some View {
+        Menu {
+            Button { showChooser = true } label: { Label("Choose parsha and aliyah…", systemImage: "book") }
+
+            if let s = store.upcomingShabbat {
+                Menu {
+                    ForEach(s.aliyot, id: \.n) { a in
+                        Button("\(a.label) · \(Passage(book: a.book, ranges: [a.range]).display)") {
+                            open(.from(shabbat: s, aliyah: a))
+                        }
+                    }
+                } label: { Label("This Shabbat: \(s.parsha)", systemImage: "calendar") }
+            }
+
+            if sheetConfigured {
+                Section(sheetFromCache ? "My readings (offline copy)" : "My readings") {
+                    if let sheetError { Text(sheetError) }
+                    if upcoming.isEmpty && sheetError == nil { Text("None upcoming") }
+                    ForEach(upcoming) { a in
+                        if let t = ReadingTarget.from(assignment: a) {
+                            Button("\(a.date.formatted(.dateTime.month(.abbreviated).day())) · \(a.parshaOnSheet) · \(a.slotLabel)") { open(t) }
                         }
                     }
                 }
             }
-        }
-    }
 
-    @ViewBuilder private var chooser: some View {
-        Section {
-            Picker("Parsha", selection: $parsha) {
-                ForEach(store.parshaOrder, id: \.self) { Text($0).tag($0) }
-            }
-            Picker("Triennial year", selection: $yearChoice) {
-                Text("This year").tag(0)
-                Text("Year 1").tag(1)
-                Text("Year 2").tag(2)
-                Text("Year 3").tag(3)
-            }
-            Picker("Aliyah", selection: $aliyah) {
-                ForEach(["1", "2", "3", "4", "5", "6", "7"], id: \.self) { Text("Aliyah \($0)").tag($0) }
-                Text("Maftir").tag("M")
-            }
-            if let s = store.nextReading(of: parsha, cycleYear: yearChoice == 0 ? nil : yearChoice),
-               let a = s.aliyah(aliyah) {
-                NavigationLink(value: ReadingTarget.from(shabbat: s, aliyah: a)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Open \(Passage(book: a.book, ranges: [a.range]).display)").font(.headline)
-                        Text("\(s.day.formatted(date: .abbreviated, time: .omitted)) · triennial year \(s.cycleYear)\(a.reason.map { " · \($0)" } ?? "")")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+            Section {
+                Button { showSheetSettings = true } label: {
+                    Label(sheetConfigured ? "Sign-up sheet…" : "Add sign-up sheet…", systemImage: "tablecells")
                 }
-            } else {
-                Text("Hebcal has no reading for that choice.").foregroundStyle(.secondary)
             }
-        } header: {
-            Text("Choose a reading")
-        } footer: {
-            Text("“This year” uses Hebcal's triennial cycle for the next time the parsha is read.")
+        } label: {
+            Image(systemName: "line.3.horizontal")
         }
+        .accessibilityLabel("Menu")
     }
 
     // MARK: Sheet
 
     private func loadSheet() async {
         guard sheetConfigured else { assignments = []; sheetError = nil; return }
-        loadingSheet = true
-        defer { loadingSheet = false }
         do {
             let result = try await SignupSheet.assignments(sheetURL: sheetURL, names: readerNames)
             assignments = result.rows
@@ -159,14 +102,67 @@ struct ContentView: View {
         } catch {
             sheetError = error.localizedDescription
         }
-        if autoOpen, !didAutoOpen, path.isEmpty, let next = upcoming.first, let target = ReadingTarget.from(assignment: next) {
-            didAutoOpen = true
-            path = [target]
+        if autoOpen, !userPicked, let next = upcoming.first, let t = ReadingTarget.from(assignment: next) {
+            target = t
         }
     }
 }
 
-struct SettingsView: View {
+/// Pick any parsha and aliyah; Hebcal supplies this year's verses.
+struct ChooserView: View {
+    let onPick: (ReadingTarget) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var parsha: String = DataStore.shared.upcomingShabbat?.parsha ?? "Bereshit"
+    @State private var yearChoice = 0          // 0 = this year (from Hebcal), else 1–3
+    @State private var aliyah = "1"
+    private let store = DataStore.shared
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Parsha", selection: $parsha) {
+                        ForEach(store.parshaOrder, id: \.self) { Text($0).tag($0) }
+                    }
+                    Picker("Aliyah", selection: $aliyah) {
+                        ForEach(["1", "2", "3", "4", "5", "6", "7"], id: \.self) { Text("Aliyah \($0)").tag($0) }
+                        Text("Maftir").tag("M")
+                    }
+                    Picker("Triennial year", selection: $yearChoice) {
+                        Text("This year").tag(0)
+                        Text("Year 1").tag(1)
+                        Text("Year 2").tag(2)
+                        Text("Year 3").tag(3)
+                    }
+                } footer: {
+                    Text("“This year” uses Hebcal's triennial cycle for the next time the parsha is read.")
+                }
+                Section {
+                    if let s = store.nextReading(of: parsha, cycleYear: yearChoice == 0 ? nil : yearChoice),
+                       let a = s.aliyah(aliyah) {
+                        Button {
+                            onPick(.from(shabbat: s, aliyah: a))
+                            dismiss()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Open \(Passage(book: a.book, ranges: [a.range]).display)").font(.headline)
+                                Text("\(s.day.formatted(date: .abbreviated, time: .omitted)) · triennial year \(s.cycleYear)\(a.reason.map { " · \($0)" } ?? "")")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    } else {
+                        Text("Hebcal has no reading for that choice.").foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Choose a reading")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Cancel") { dismiss() } }
+        }
+    }
+}
+
+struct SignupSettingsView: View {
     @Binding var sheetURL: String
     @Binding var readerNames: String
     @Binding var autoOpen: Bool
@@ -176,14 +172,6 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Google Sheets link", text: $sheetURL, axis: .vertical)
-                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                } header: {
-                    Text("Sign-up sheet")
-                } footer: {
-                    Text("The sheet's General access must be “Anyone with the link.” It needs Date, Aliyah and Sign Up columns.")
-                }
-                Section {
                     TextField("Name", text: $readerNames).autocorrectionDisabled()
                 } header: {
                     Text("Your name on the sheet")
@@ -191,10 +179,21 @@ struct SettingsView: View {
                     Text("Separate several spellings with commas, e.g. “Sam Cohen, Samuel Cohen”.")
                 }
                 Section {
+                    TextField("Google Sheets link", text: $sheetURL, axis: .vertical)
+                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                } header: {
+                    Text("Sign-up sheet")
+                } footer: {
+                    Text("The sheet's General access must be “Anyone with the link.” It needs Date, Aliyah and Sign Up columns. Your readings then appear in the menu.")
+                }
+                Section {
                     Toggle("Open my next reading at launch", isOn: $autoOpen)
+                } footer: {
+                    Text("Otherwise the app opens to this Shabbat's first aliyah.")
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle("Sign-up sheet")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Done") { dismiss() } }
         }
     }
