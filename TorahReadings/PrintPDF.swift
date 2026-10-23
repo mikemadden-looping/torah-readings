@@ -6,8 +6,8 @@ import PDFKit
 /// colored by trope group) and the Tikkun lines as they fall in the scroll.
 enum ReadingPDF {
     struct Options: Equatable {
-        var vowels = true
-        var tikkun = true
+        enum Mode: String, CaseIterable { case vowels = "Vowels", tikkun = "Tikkun" }
+        var mode: Mode = .vowels
         var colors = false
         var vowelSize: CGFloat = 20
         var stamFont = Fonts.stamAshkenaz
@@ -31,13 +31,12 @@ enum ReadingPDF {
             newPage()
             var y = drawHeader(target: target, top: content.minY)
 
-            if options.vowels {
+            if options.mode == .vowels {
                 y = sectionTitle("Vowels and trope", at: y)
                 let text = vowelsText(verses, options: options)
                 y = drawFlowing(text, from: y, newPage: newPage)
             }
-            if options.tikkun, let tikkun, !tikkun.isEmpty {
-                if options.vowels { newPage(); y = content.minY }
+            if options.mode == .tikkun, let tikkun, !tikkun.isEmpty {
                 y = sectionTitle("Tikkun", at: y)
                 drawTikkun(tikkun, fontName: Fonts.scroll(options.stamFont), from: y, newPage: newPage)
             }
@@ -220,11 +219,15 @@ struct PrintSheet: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Form {
-                    Toggle("Vowels and trope", isOn: $options.vowels)
-                    if options.vowels { Toggle("Color trope groups", isOn: $options.colors) }
-                    if target.passage.isTorah { Toggle("Tikkun", isOn: $options.tikkun) }
+                    if target.passage.isTorah {
+                        Picker("Print", selection: $options.mode) {
+                            ForEach(ReadingPDF.Options.Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    if options.mode == .vowels { Toggle("Color trope groups", isOn: $options.colors) }
                 }
-                .frame(height: target.passage.isTorah ? 190 : 150)
+                .frame(height: 150)
                 if let data { PDFPreview(data: data) } else { ProgressView().frame(maxHeight: .infinity) }
             }
             .navigationTitle("Print")
@@ -240,7 +243,6 @@ struct PrintSheet: View {
         .task {
             options.colors = initialColors
             options.stamFont = stamFont
-            options.tikkun = target.passage.isTorah
             verses = (try? await SefariaClient.shared.verses(for: target.passage)) ?? []
             if target.passage.isTorah { tikkun = await TikkunView.buildLines(for: target.passage) }
             loaded = true
