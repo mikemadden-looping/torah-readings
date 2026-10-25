@@ -1,4 +1,4 @@
-# Data report (2026-10-23)
+# Data report (2026-10-25)
 
 Hebrew years 5786–5797: 581 Shabbatot, 4648 aliyot.
 Videos parsed: 1024.
