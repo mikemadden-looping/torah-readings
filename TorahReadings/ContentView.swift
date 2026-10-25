@@ -191,7 +191,7 @@ struct ChooserView: View {
                     }
                 } footer: {
                     Text(fullParsha
-                         ? "Full parsha: the whole parsha's aliyot, as read the next time it comes up. Switch to the triennial cycle in the menu."
+                         ? "Full parsha: the whole parsha's aliyot, as read the next time it comes up. No videos, since they follow the triennial aliyot. Switch cycles in the menu."
                          : "“This year” is the next time the parsha is read. Each year reads a different third of it (Hebcal's triennial cycle).")
                 }
                 Section {

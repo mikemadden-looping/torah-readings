@@ -27,7 +27,8 @@ struct ReadingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                if target.passage.isTorah { videoSection }
+                // Tricks of the Trope videos follow the triennial aliyot, so none for full-parsha readings.
+                if target.passage.isTorah && !target.fullParsha { videoSection }
                 Picker("Text", selection: $modeRaw) {
                     ForEach(availableModes) { Text($0.rawValue).tag($0.rawValue) }
                 }
