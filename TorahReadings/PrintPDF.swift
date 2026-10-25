@@ -59,7 +59,7 @@ enum ReadingPDF {
         var sub = target.passage.display
         if let s = target.shabbat {
             sub += " · \(DateFormatter.longDay.string(from: s.day)) · \(s.hdate)"
-            if target.passage.isTorah { sub += " · Triennial year \(s.cycleYear)" }
+            if let cycle = target.cycleLabel { sub += " · \(cycle)" }
         }
         if let r = target.reason { sub += " · \(r)" }
         sub.draw(in: CGRect(x: margin, y: y, width: content.width, height: 30),

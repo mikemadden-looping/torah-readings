@@ -18,11 +18,15 @@ struct Shabbat: Decodable, Identifiable, Hashable {
     let cycleYear: Int        // 1, 2 or 3
     let variation: String?
     let playlist: String?
-    let aliyot: [Aliyah]
+    let aliyot: [Aliyah]      // triennial
+    let full: [Aliyah]?       // full parsha (annual)
 
     var id: String { date }
     var day: Date { DateFormatter.isoDay.date(from: date) ?? .distantPast }
-    func aliyah(_ n: String) -> Aliyah? { aliyot.first { $0.n == n } }
+    func readings(fullParsha: Bool) -> [Aliyah] { fullParsha ? (full ?? []) : aliyot }
+    func aliyah(_ n: String, fullParsha: Bool = false) -> Aliyah? {
+        readings(fullParsha: fullParsha).first { $0.n == n }
+    }
 }
 
 struct Aliyah: Decodable, Hashable {

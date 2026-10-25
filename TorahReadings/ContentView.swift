@@ -6,6 +6,7 @@ struct ContentView: View {
     @AppStorage("sheetURL") private var sheetURL = SignupSheet.defaultURL
     @AppStorage("readerNames") private var readerNames = SignupSheet.defaultName
     @AppStorage("autoOpen") private var autoOpen = true
+    @AppStorage("fullParsha") private var fullParsha = false
 
     @State private var target: ReadingTarget? = ContentView.thisWeeksFirst
     @State private var userPicked = false
@@ -23,8 +24,9 @@ struct ContentView: View {
     }
 
     static var thisWeeksFirst: ReadingTarget? {
-        guard let s = DataStore.shared.upcomingShabbat, let a = s.aliyah("1") else { return nil }
-        return .from(shabbat: s, aliyah: a)
+        let full = UserDefaults.standard.bool(forKey: "fullParsha")
+        guard let s = DataStore.shared.upcomingShabbat, let a = s.aliyah("1", fullParsha: full) ?? s.aliyah("1") else { return nil }
+        return .from(shabbat: s, aliyah: a, fullParsha: full && s.full?.isEmpty == false)
     }
 
     var body: some View {
@@ -38,8 +40,12 @@ struct ContentView: View {
             }
         }
         .task { await loadSheet() }
+        .onChange(of: fullParsha) { _, full in
+            // Keep the same Shabbat and aliyah, in the newly chosen cycle.
+            if let t = target?.switched(toFullParsha: full) { open(t) }
+        }
         .sheet(isPresented: $showChooser) {
-            ChooserView(current: target) { picked in open(picked) }
+            ChooserView(current: target, fullParsha: fullParsha) { picked in open(picked) }
         }
         .sheet(isPresented: $showSheetSettings, onDismiss: { Task { await loadSheet() } }) {
             SignupSettingsView(sheetURL: $sheetURL, readerNames: $readerNames, autoOpen: $autoOpen)
@@ -59,9 +65,9 @@ struct ContentView: View {
 
             if let s = store.upcomingShabbat {
                 Menu {
-                    ForEach(s.aliyot, id: \.n) { a in
+                    ForEach(s.readings(fullParsha: fullParsha), id: \.n) { a in
                         Button("\(a.label) · \(Passage(book: a.book, ranges: [a.range]).display)") {
-                            open(.from(shabbat: s, aliyah: a))
+                            open(.from(shabbat: s, aliyah: a, fullParsha: fullParsha))
                         }
                     }
                 } label: { Label("This Shabbat: \(s.parsha)", systemImage: "calendar") }
@@ -77,6 +83,16 @@ struct ContentView: View {
                         }
                     }
                 }
+            }
+
+            Section {
+                Picker(selection: $fullParsha) {
+                    Text("Triennial cycle").tag(false)
+                    Text("Full parsha").tag(true)
+                } label: {
+                    Label("Reading", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .pickerStyle(.menu)
             }
 
             Section {
@@ -110,6 +126,7 @@ struct ContentView: View {
 
 /// Pick any parsha and aliyah; Hebcal supplies this year's verses.
 struct ChooserView: View {
+    let fullParsha: Bool
     let onPick: (ReadingTarget) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var parsha: String
@@ -119,12 +136,13 @@ struct ChooserView: View {
 
     /// Starts on the reading being shown, so stepping to the next aliyah of the
     /// same parsha is one tap. Falls back to this Shabbat's first aliyah.
-    init(current: ReadingTarget?, onPick: @escaping (ReadingTarget) -> Void) {
+    init(current: ReadingTarget?, fullParsha: Bool, onPick: @escaping (ReadingTarget) -> Void) {
+        self.fullParsha = fullParsha
         self.onPick = onPick
         let store = DataStore.shared
         if let s = current?.shabbat, store.parshaOrder.contains(s.parsha) {
             _parsha = State(initialValue: s.parsha)
-            let key = s.aliyot.first { $0.label == current?.slotLabel }?.n
+            let key = s.readings(fullParsha: current?.fullParsha ?? false).first { $0.label == current?.slotLabel }?.n
                 ?? (current?.slotLabel == "Maftir" ? "M" : "1")
             _aliyah = State(initialValue: key)
             _yearChoice = State(initialValue: s.cycleYear)
@@ -166,22 +184,26 @@ struct ChooserView: View {
                         ForEach(["1", "2", "3", "4", "5", "6", "7"], id: \.self) { Text("Aliyah \($0)").tag($0) }
                         Text("Maftir").tag("M")
                     }
-                    Picker("When", selection: $yearChoice) {
-                        ForEach(yearOptions, id: \.cycleYear) { Text($0.label).tag($0.cycleYear) }
+                    if !fullParsha {
+                        Picker("When", selection: $yearChoice) {
+                            ForEach(yearOptions, id: \.cycleYear) { Text($0.label).tag($0.cycleYear) }
+                        }
                     }
                 } footer: {
-                    Text("“This year” is the next time the parsha is read. Each year reads a different third of it (Hebcal's triennial cycle).")
+                    Text(fullParsha
+                         ? "Full parsha: the whole parsha's aliyot, as read the next time it comes up. Switch to the triennial cycle in the menu."
+                         : "“This year” is the next time the parsha is read. Each year reads a different third of it (Hebcal's triennial cycle).")
                 }
                 Section {
-                    if let s = store.nextReading(of: parsha, cycleYear: yearChoice),
-                       let a = s.aliyah(aliyah) {
+                    if let s = store.nextReading(of: parsha, cycleYear: fullParsha ? nil : yearChoice),
+                       let a = s.aliyah(aliyah, fullParsha: fullParsha) {
                         Button {
-                            onPick(.from(shabbat: s, aliyah: a))
+                            onPick(.from(shabbat: s, aliyah: a, fullParsha: fullParsha))
                             dismiss()
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Open \(Passage(book: a.book, ranges: [a.range]).display)").font(.headline)
-                                Text("\(s.day.formatted(date: .abbreviated, time: .omitted)) · triennial year \(s.cycleYear)\(a.reason.map { " · \($0)" } ?? "")")
+                                Text("\(s.day.formatted(date: .abbreviated, time: .omitted)) · \(fullParsha ? "full parsha" : "triennial year \(s.cycleYear)")\(a.reason.map { " · \($0)" } ?? "")")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }

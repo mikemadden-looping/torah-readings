@@ -73,8 +73,8 @@ struct ReadingView: View {
                 }
                 Text("\(DateFormatter.longDay.string(from: s.day)) · \(s.hdate)")
                     .font(.subheadline).foregroundStyle(.secondary)
-                if target.passage.isTorah {
-                    Text("Triennial year \(s.cycleYear)").font(.subheadline).foregroundStyle(.secondary)
+                if let cycle = target.cycleLabel {
+                    Text(cycle).font(.subheadline).foregroundStyle(.secondary)
                 }
             }
             Text("\(target.slotLabel): \(target.passage.display)").font(.headline).padding(.top, 2)
@@ -277,7 +277,7 @@ struct ReadingView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Text: Sefaria — Miqra according to the Masorah (CC BY-SA) and its English translation.")
             if target.passage.isTorah {
-                Text("Readings: Hebcal.com triennial (CC BY 4.0). Videos: Tricks of the Trope – Total Torah, Cantor Arianne Brown, Adas Israel.")
+                Text("Readings: Hebcal.com triennial and full kriyah (CC BY 4.0). Videos: Tricks of the Trope – Total Torah, Cantor Arianne Brown, Adas Israel.")
             }
         }
         .font(.caption2)

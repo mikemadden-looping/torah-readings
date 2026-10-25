@@ -7,12 +7,29 @@ struct ReadingTarget: Hashable, Identifiable {
     let slotLabel: String        // "Aliyah 1", "Maftir", "Haftara"
     let reason: String?          // special maftir, from Hebcal or the sheet
     let note: String?            // e.g. the sheet and Hebcal disagree
+    var fullParsha = false       // full-parsha aliyah rather than triennial
 
     var id: String { "\(shabbat?.date ?? "") \(slotLabel) \(passage.id)" }
 
-    static func from(shabbat: Shabbat, aliyah: Aliyah) -> ReadingTarget {
+    /// "Full parsha" or "Triennial year 2", for headers.
+    var cycleLabel: String? {
+        guard let s = shabbat, passage.isTorah else { return nil }
+        return fullParsha ? "Full parsha" : "Triennial year \(s.cycleYear)"
+    }
+
+    static func from(shabbat: Shabbat, aliyah: Aliyah, fullParsha: Bool = false) -> ReadingTarget {
         ReadingTarget(passage: Passage(book: aliyah.book, ranges: [aliyah.range]),
-                      shabbat: shabbat, slotLabel: aliyah.label, reason: aliyah.reason, note: nil)
+                      shabbat: shabbat, slotLabel: aliyah.label, reason: aliyah.reason, note: nil,
+                      fullParsha: fullParsha)
+    }
+
+    /// The same slot (e.g. Aliyah 4) of the same Shabbat, in the other cycle.
+    func switched(toFullParsha full: Bool) -> ReadingTarget? {
+        guard let s = shabbat, full != fullParsha else { return nil }
+        let n = s.readings(fullParsha: fullParsha).first { $0.label == slotLabel }?.n
+            ?? (slotLabel == "Maftir" ? "M" : nil)
+        guard let n, let a = s.aliyah(n, fullParsha: full) else { return nil }
+        return .from(shabbat: s, aliyah: a, fullParsha: full)
     }
 
     static func from(assignment a: Assignment, store: DataStore = .shared) -> ReadingTarget? {

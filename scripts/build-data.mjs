@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HebrewCalendar, HDate } from '@hebcal/core';
 import { getTriennialForParshaHaShavua, Triennial } from '@hebcal/triennial';
+import { getLeyningForParshaHaShavua } from '@hebcal/leyning';
 import { BOOK_PAGES, parseBookPage } from './parse-videos.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -183,6 +184,15 @@ for (let y = FIRST_YEAR; y <= LAST_YEAR; y++) {
       if (vids.length === 1 && vids[0].exact) exactCount++;
       totalAliyot++;
     }
+    // Full-parsha (annual) aliyot, for readers who read the whole parsha.
+    const full = [];
+    const fk = getLeyningForParshaHaShavua(ev, false)?.fullkriyah;
+    for (const n of ['1', '2', '3', '4', '5', '6', '7', 'M']) {
+      const a = fk?.[n];
+      if (!a?.k || !a.b || !a.e) continue;
+      full.push({ n, book: a.k, b: a.b, e: a.e, verses: a.v, ...(a.reason ? { reason: a.reason } : {}) });
+    }
+    if (!full.length) issues.push(`**No full-parsha aliyot** — ${ev.getDesc()} ${ev.getDate().greg().toISOString().slice(0, 10)}`);
     const d = ev.getDate();
     shabbatot.push({
       date: d.greg().toISOString().slice(0, 10),
@@ -194,6 +204,7 @@ for (let y = FIRST_YEAR; y <= LAST_YEAR; y++) {
       variation: tri.variation,
       playlist: playlistFor(ev.parsha),
       aliyot,
+      full,
     });
   }
 }
@@ -218,7 +229,7 @@ await writeFile(OUT, JSON.stringify({
   generated: new Date().toISOString().slice(0, 10),
   firstYear: FIRST_YEAR, lastYear: LAST_YEAR,
   sources: {
-    readings: 'Hebcal triennial (@hebcal/triennial), diaspora, CC BY 4.0 — hebcal.com',
+    readings: 'Hebcal triennial (@hebcal/triennial) and full kriyah (@hebcal/leyning), diaspora, CC BY 4.0 — hebcal.com',
     videos: 'Tricks of the Trope – Total Torah, Cantor Arianne Brown, Adas Israel Congregation — adasisrael.org/trope',
   },
   shabbatot,
