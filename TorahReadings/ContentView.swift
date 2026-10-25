@@ -39,7 +39,7 @@ struct ContentView: View {
         }
         .task { await loadSheet() }
         .sheet(isPresented: $showChooser) {
-            ChooserView { picked in open(picked) }
+            ChooserView(current: target) { picked in open(picked) }
         }
         .sheet(isPresented: $showSheetSettings, onDismiss: { Task { await loadSheet() } }) {
             SignupSettingsView(sheetURL: $sheetURL, readerNames: $readerNames, autoOpen: $autoOpen)
@@ -112,10 +112,30 @@ struct ContentView: View {
 struct ChooserView: View {
     let onPick: (ReadingTarget) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var parsha: String = DataStore.shared.upcomingShabbat?.parsha ?? "Bereshit"
-    @State private var yearChoice = 0          // 0 = this year (from Hebcal), else 1–3
-    @State private var aliyah = "1"
+    @State private var parsha: String
+    @State private var yearChoice: Int         // 0 = this year (from Hebcal), else 1–3
+    @State private var aliyah: String
     private let store = DataStore.shared
+
+    /// Starts on the reading being shown, so stepping to the next aliyah of the
+    /// same parsha is one tap. Falls back to this Shabbat's first aliyah.
+    init(current: ReadingTarget?, onPick: @escaping (ReadingTarget) -> Void) {
+        self.onPick = onPick
+        let store = DataStore.shared
+        if let s = current?.shabbat, store.parshaOrder.contains(s.parsha) {
+            _parsha = State(initialValue: s.parsha)
+            let key = s.aliyot.first { $0.label == current?.slotLabel }?.n
+                ?? (current?.slotLabel == "Maftir" ? "M" : "1")
+            _aliyah = State(initialValue: key)
+            // Keep "This year" when the shown reading is the one it would pick.
+            let thisYear = store.nextReading(of: s.parsha)
+            _yearChoice = State(initialValue: thisYear?.date == s.date ? 0 : s.cycleYear)
+        } else {
+            _parsha = State(initialValue: store.upcomingShabbat?.parsha ?? "Bereshit")
+            _aliyah = State(initialValue: "1")
+            _yearChoice = State(initialValue: 0)
+        }
+    }
 
     var body: some View {
         NavigationStack {
