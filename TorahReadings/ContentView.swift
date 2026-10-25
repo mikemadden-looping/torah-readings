@@ -113,7 +113,7 @@ struct ChooserView: View {
     let onPick: (ReadingTarget) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var parsha: String
-    @State private var yearChoice: Int         // 0 = this year (from Hebcal), else 1–3
+    @State private var yearChoice: Int         // triennial cycle year, 1–3
     @State private var aliyah: String
     private let store = DataStore.shared
 
@@ -127,14 +127,32 @@ struct ChooserView: View {
             let key = s.aliyot.first { $0.label == current?.slotLabel }?.n
                 ?? (current?.slotLabel == "Maftir" ? "M" : "1")
             _aliyah = State(initialValue: key)
-            // Keep "This year" when the shown reading is the one it would pick.
-            let thisYear = store.nextReading(of: s.parsha)
-            _yearChoice = State(initialValue: thisYear?.date == s.date ? 0 : s.cycleYear)
+            _yearChoice = State(initialValue: s.cycleYear)
         } else {
             _parsha = State(initialValue: store.upcomingShabbat?.parsha ?? "Bereshit")
             _aliyah = State(initialValue: "1")
-            _yearChoice = State(initialValue: 0)
+            let p = store.upcomingShabbat?.parsha ?? "Bereshit"
+            _yearChoice = State(initialValue: store.nextReading(of: p)?.cycleYear ?? 1)
         }
+    }
+
+    /// The three triennial years in the order they come up for this parsha,
+    /// labeled "This year", "Next year", then the calendar year (e.g. "2028").
+    private var yearOptions: [(cycleYear: Int, label: String)] {
+        let today = Calendar.current.startOfDay(for: Date())
+        var seen = Set<Int>()
+        let upcoming = store.readings.shabbatot
+            .filter { $0.parsha == parsha && $0.day >= today && seen.insert($0.cycleYear).inserted }
+        var options = upcoming.enumerated().map { i, s -> (cycleYear: Int, label: String) in
+            let label = i == 0 ? "This year" : i == 1 ? "Next year"
+                : String(Calendar.current.component(.year, from: s.day))
+            return (s.cycleYear, label)
+        }
+        // Years past the end of the bundled calendar still get a choice.
+        for y in 1...3 where !options.contains(where: { $0.cycleYear == y }) {
+            options.append((y, "Triennial year \(y)"))
+        }
+        return options
     }
 
     var body: some View {
@@ -148,17 +166,14 @@ struct ChooserView: View {
                         ForEach(["1", "2", "3", "4", "5", "6", "7"], id: \.self) { Text("Aliyah \($0)").tag($0) }
                         Text("Maftir").tag("M")
                     }
-                    Picker("Triennial year", selection: $yearChoice) {
-                        Text("This year").tag(0)
-                        Text("Year 1").tag(1)
-                        Text("Year 2").tag(2)
-                        Text("Year 3").tag(3)
+                    Picker("When", selection: $yearChoice) {
+                        ForEach(yearOptions, id: \.cycleYear) { Text($0.label).tag($0.cycleYear) }
                     }
                 } footer: {
-                    Text("“This year” uses Hebcal's triennial cycle for the next time the parsha is read.")
+                    Text("“This year” is the next time the parsha is read. Each year reads a different third of it (Hebcal's triennial cycle).")
                 }
                 Section {
-                    if let s = store.nextReading(of: parsha, cycleYear: yearChoice == 0 ? nil : yearChoice),
+                    if let s = store.nextReading(of: parsha, cycleYear: yearChoice),
                        let a = s.aliyah(aliyah) {
                         Button {
                             onPick(.from(shabbat: s, aliyah: a))
@@ -174,6 +189,9 @@ struct ChooserView: View {
                         Text("Hebcal has no reading for that choice.").foregroundStyle(.secondary)
                     }
                 }
+            }
+            .onChange(of: parsha) { _, p in
+                yearChoice = store.nextReading(of: p)?.cycleYear ?? yearChoice
             }
             .navigationTitle("Choose a reading")
             .navigationBarTitleDisplayMode(.inline)
