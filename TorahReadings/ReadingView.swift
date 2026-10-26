@@ -37,7 +37,11 @@ struct ReadingView: View {
                 textSection
                 credits
             }
+            // On iPad and Mac, keep a readable column instead of stretching
+            // the video and text across the whole window.
+            .frame(maxWidth: 820)
             .padding()
+            .frame(maxWidth: .infinity)
         }
         .navigationTitle(target.shabbat?.parsha ?? target.passage.book)
         .navigationBarTitleDisplayMode(.inline)
