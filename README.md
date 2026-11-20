@@ -18,7 +18,7 @@ aliyah (or let it find the ones you're signed up for) and it shows:
 | Which verses each aliyah is, by triennial year | [Hebcal](https://www.hebcal.com) `@hebcal/triennial` (diaspora), CC BY 4.0 |
 | Hebrew and English text | [Sefaria](https://www.sefaria.org) API — *Miqra according to the Masorah* (CC BY-SA) and Sefaria's default English, fetched on demand and cached for offline use |
 | Videos | The five book pages under adasisrael.org/trope |
-| Your readings | The shul's Google sign-up sheet (set in the app's Settings; General access must be "Anyone with the link") |
+| Your readings | The shul's Google sign-up sheet (set in the app's Settings; General access must be "Anyone with the link")), plus any readings you pin by hand (stored on the device) for assignments that aren't on the sheet |
 
 `scripts/build-data.mjs` turns Hebcal and the Adas Israel pages into
 `TorahReadings/Resources/readings.json` (every Shabbat for 12 Hebrew years starting with the current

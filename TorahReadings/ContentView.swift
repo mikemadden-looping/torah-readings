@@ -7,6 +7,7 @@ struct ContentView: View {
     @AppStorage("readerNames") private var readerNames = SignupSheet.defaultName
     @AppStorage("autoOpen") private var autoOpen = true
     @AppStorage("fullParsha") private var fullParsha = false
+    @AppStorage(PinnedReadings.key) private var pinsRaw = "[]"
 
     @State private var target: ReadingTarget? = ContentView.thisWeeksFirst
     @State private var userPicked = false
@@ -19,6 +20,26 @@ struct ContentView: View {
     private let store = DataStore.shared
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
     private var upcoming: [Assignment] { assignments.filter { $0.date >= today } }
+    private var pins: [PinnedReading] { PinnedReadings.decode(pinsRaw) }
+    /// Pinned readings still ahead, minus any the sheet now lists too.
+    private var upcomingPins: [PinnedReading] {
+        pins.filter { p in
+            p.day >= today && !upcoming.contains { a in
+                !p.fullParsha && a.date == p.day && a.aliyahKey == p.n
+            }
+        }
+    }
+    /// Sheet assignments and pinned readings together, soonest first.
+    private var myReadings: [MyReading] {
+        (upcoming.map(MyReading.sheet) + upcomingPins.map(MyReading.pinned)).sorted { $0.date < $1.date }
+    }
+    private var currentPin: PinnedReading? { target.flatMap(PinnedReading.init(target:)) }
+    private var currentIsPinned: Bool { currentPin.map { pins.contains($0) } ?? false }
+    /// True when the reading on screen already comes from the sheet.
+    private var currentIsOnSheet: Bool {
+        guard let p = currentPin, !p.fullParsha else { return false }
+        return upcoming.contains { $0.date == p.day && $0.aliyahKey == p.n }
+    }
     private var sheetConfigured: Bool {
         !sheetURL.trimmingCharacters(in: .whitespaces).isEmpty && !readerNames.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -73,13 +94,22 @@ struct ContentView: View {
                 } label: { Label("This Shabbat: \(s.parsha)", systemImage: "calendar") }
             }
 
-            if sheetConfigured {
-                Section(sheetFromCache ? "My readings (offline copy)" : "My readings") {
-                    if let sheetError { Text(sheetError) }
-                    if upcoming.isEmpty && sheetError == nil { Text("None upcoming") }
-                    ForEach(upcoming) { a in
-                        if let t = ReadingTarget.from(assignment: a) {
-                            Button("\(a.date.formatted(.dateTime.month(.abbreviated).day())) · \(a.parshaOnSheet) · \(a.slotLabel)") { open(t) }
+            if sheetConfigured || !upcomingPins.isEmpty || currentPin != nil {
+                Section(sheetConfigured && sheetFromCache ? "My readings (offline copy)" : "My readings") {
+                    if sheetConfigured, let sheetError { Text(sheetError) }
+                    if myReadings.isEmpty && (sheetError == nil || !sheetConfigured) { Text("None upcoming") }
+                    ForEach(myReadings) { r in
+                        if let t = r.target {
+                            Button { open(t) } label: {
+                                if r.isPinned { Label(r.title, systemImage: "pin") } else { Text(r.title) }
+                            }
+                        }
+                    }
+                    if let p = currentPin, !currentIsOnSheet, p.day >= today {
+                        if currentIsPinned {
+                            Button { unpin(p) } label: { Label("Unpin this reading", systemImage: "pin.slash") }
+                        } else {
+                            Button { pin(p) } label: { Label("Pin this reading", systemImage: "pin") }
                         }
                     }
                 }
@@ -106,19 +136,37 @@ struct ContentView: View {
         .accessibilityLabel("Menu")
     }
 
+    // MARK: Pins
+
+    private func pin(_ p: PinnedReading) {
+        guard !pins.contains(p) else { return }
+        pinsRaw = PinnedReadings.encode(pins + [p])
+    }
+
+    private func unpin(_ p: PinnedReading) {
+        pinsRaw = PinnedReadings.encode(pins.filter { $0 != p })
+    }
+
     // MARK: Sheet
 
     private func loadSheet() async {
-        guard sheetConfigured else { assignments = []; sheetError = nil; return }
-        do {
-            let result = try await SignupSheet.assignments(sheetURL: sheetURL, names: readerNames)
-            assignments = result.rows
-            sheetFromCache = result.fromCache
-            sheetError = nil
-        } catch {
-            sheetError = error.localizedDescription
+        // Drop pins for Shabbatot that have passed.
+        let kept = pins.filter { $0.day >= today }
+        if kept.count != pins.count { pinsRaw = PinnedReadings.encode(kept) }
+
+        if sheetConfigured {
+            do {
+                let result = try await SignupSheet.assignments(sheetURL: sheetURL, names: readerNames)
+                assignments = result.rows
+                sheetFromCache = result.fromCache
+                sheetError = nil
+            } catch {
+                sheetError = error.localizedDescription
+            }
+        } else {
+            assignments = []; sheetError = nil
         }
-        if autoOpen, !userPicked, let next = upcoming.first, let t = ReadingTarget.from(assignment: next) {
+        if autoOpen, !userPicked, let t = myReadings.first?.target {
             target = t
         }
     }
@@ -132,6 +180,7 @@ struct ChooserView: View {
     @State private var parsha: String
     @State private var yearChoice: Int         // triennial cycle year, 1–3
     @State private var aliyah: String
+    @AppStorage(PinnedReadings.key) private var pinsRaw = "[]"
     private let store = DataStore.shared
 
     /// Starts on the reading being shown, so stepping to the next aliyah of the
@@ -211,6 +260,27 @@ struct ChooserView: View {
                         Text("Hebcal has no reading for that choice.").foregroundStyle(.secondary)
                     }
                 }
+                if let s = store.nextReading(of: parsha, cycleYear: fullParsha ? nil : yearChoice),
+                   s.aliyah(aliyah, fullParsha: fullParsha) != nil,
+                   s.day >= Calendar.current.startOfDay(for: Date()) {
+                    let pin = PinnedReading(date: s.date, n: aliyah, fullParsha: fullParsha)
+                    let pins = PinnedReadings.decode(pinsRaw)
+                    Section {
+                        if pins.contains(pin) {
+                            Button(role: .destructive) {
+                                pinsRaw = PinnedReadings.encode(pins.filter { $0 != pin })
+                            } label: { Label("Unpin from My readings", systemImage: "pin.slash") }
+                        } else {
+                            Button {
+                                pinsRaw = PinnedReadings.encode(pins + [pin])
+                                if let t = pin.target() { onPick(t) }
+                                dismiss()
+                            } label: { Label("Pin to My readings", systemImage: "pin") }
+                        }
+                    } footer: {
+                        Text("For a reading you've been assigned that isn't on the sign-up sheet. It shows in the menu under My readings, like a sheet assignment, until that Shabbat passes.")
+                    }
+                }
             }
             .onChange(of: parsha) { _, p in
                 yearChoice = store.nextReading(of: p)?.cycleYear ?? yearChoice
@@ -249,7 +319,7 @@ struct SignupSettingsView: View {
                 Section {
                     Toggle("Open my next reading at launch", isOn: $autoOpen)
                 } footer: {
-                    Text("Otherwise the app opens to this Shabbat's first aliyah.")
+                    Text("Includes readings you've pinned. Otherwise the app opens to this Shabbat's first aliyah.")
                 }
             }
             .navigationTitle("Sign-up sheet")
